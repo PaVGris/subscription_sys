@@ -54,32 +54,4 @@ class Subscription(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.user.email} - {self.plan.name}"
-
-
-class Invoice(models.Model):
-    STATUS_CHOICES = [
-        ('PENDING', 'Pending'),
-        ('PAID', 'Paid'),
-        ('FAILED', 'Failed'),
-        ('CANCELED', 'Canceled'),
-    ]
-
-    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name='invoices')
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=3, default='RUB')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
-    billing_period_start = models.DateField(null=True, blank=True)
-    billing_period_end = models.DateField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'invoices'
-        indexes = [
-            models.Index(fields=['status', 'created_at']),
-        ]
-
-    def __str__(self):
-        return f"Invoice {self.id} - {self.status}"
+        return f"{self.user.username} - {self.plan.name}"

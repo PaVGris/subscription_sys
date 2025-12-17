@@ -120,6 +120,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -154,20 +155,6 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-
-# ============================================================================
-# EMAIL CONFIGURATION (для отправки уведомлений)
-# ============================================================================
-
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Development
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'   # Production
-
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'your-email@gmail.com')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'your-password')
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # ============================================================================
 # CELERY CONFIGURATION (для асинхронных задач)
@@ -236,6 +223,11 @@ LOGGING = {
             'propagate': False,
         },
         'apps.payments': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'apps.subscriptions': {
             'handlers': ['console', 'file'],
             'level': 'DEBUG',
             'propagate': False,

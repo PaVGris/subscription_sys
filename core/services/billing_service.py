@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from django.db import transaction
-from apps.subscriptions.models import Subscription, Invoice
+from apps.subscriptions.models import Subscription
+from apps.payments.models import Invoice
+
 from apps.payments.models import Payment, TransactionHistoryEntry
 from core.payment_gateway import get_payment_gateway
 from .subscription_service import SubscriptionService
@@ -131,3 +133,39 @@ class BillingService:
         subscription.save()
 
         print(f"❌ Payment failed for subscription {subscription.id}")
+
+    def retry_failed_payments(self):
+        """Повторить неудачные платежи"""
+
+        failed_payments = Payment.objects.filter(status='FAILED')
+        retried = 0
+
+        for payment in failed_payments:
+            try:
+                # Повтор платежа
+                response = self.gateway.create_payment(payment, None)
+
+                payment.provider_payment_id = response.get('provider_payment_id')
+                payment.status = response.get('status', 'FAILED')
+                payment.retry_count += 1
+                payment.save()
+
+                if response.get('status') == 'SUCCEEDED':
+                    # Успех - обнови инвойс
+                    invoice = payment.invoice
+                    invoice.status = 'PAID'
+                    invoice.save()
+
+                    # Обнови подписку
+                    subscription = invoice.subscription
+                    self._handle_successful_payment(subscription, invoice, payment)
+
+                    retried += 1
+
+            except Exception as e:
+                print(f"Error retrying payment {payment.id}: {e}")
+
+        return {
+            'retried': retried,
+            'total': failed_payments.count(),
+        }

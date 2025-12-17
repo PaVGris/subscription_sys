@@ -1,48 +1,35 @@
 from rest_framework import serializers
 from apps.payments.models import Payment, TransactionHistoryEntry, PaymentMethodRef
 
-
 class PaymentMethodRefSerializer(serializers.ModelSerializer):
-    """Сериализатор для способа оплаты"""
-
     class Meta:
         model = PaymentMethodRef
         fields = [
             'id',
+            'user',
             'provider',
-            'provider_customer_id',
+            'stripe_payment_method_id',
             'is_default',
             'created_at',
+            'updated_at'
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
 
 
 class PaymentSerializer(serializers.ModelSerializer):
-    """Сериализатор для платежа"""
-
     class Meta:
         model = Payment
         fields = [
-            'id',
-            'invoice',
-            'status',
-            'amount',
-            'currency',
-            'provider',
-            'provider_payment_id',
-            'retry_count',
-            'next_retry_at',
-            'created_at',
-            'updated_at',
+            'id', 'user', 'invoice', 'amount', 'currency', 'status',
+            'provider', 'provider_payment_id', 'idempotency_key',
+            'created_at', 'updated_at'
         ]
-        read_only_fields = [
-            'id',
-            'provider_payment_id',
-            'retry_count',
-            'next_retry_at',
-            'created_at',
-            'updated_at',
-        ]
+        read_only_fields = ['id', 'user', 'provider_payment_id', 'created_at', 'updated_at']
+
+    def create(self, validated_data):
+        # Автоматически заполни user из request
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
 
 
 class PaymentDetailSerializer(serializers.ModelSerializer):

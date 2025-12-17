@@ -1,7 +1,7 @@
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter  # ← ИЗМЕНИ
 from apps.subscriptions.views import PlanViewSet, SubscriptionViewSet
 
-router = DefaultRouter()
+router = SimpleRouter()  # ← ИЗМЕНИ
 router.register(r'plans', PlanViewSet, basename='plan')
 router.register(r'subscriptions', SubscriptionViewSet, basename='subscription')
 

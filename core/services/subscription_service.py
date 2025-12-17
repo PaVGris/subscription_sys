@@ -1,7 +1,8 @@
 import hashlib
 from datetime import datetime, timedelta
 from django.db import transaction
-from apps.subscriptions.models import Subscription, Plan, Invoice
+from apps.subscriptions.models import Subscription, Plan
+from apps.payments.models import Invoice
 from apps.payments.models import Payment, PaymentMethodRef, TransactionHistoryEntry
 from core.payment_gateway import get_payment_gateway
 from celery import current_app as celery_app
@@ -47,12 +48,6 @@ class SubscriptionService:
 
             if invoice_amount > 0 and payment_method:
                 self._process_payment(subscription, invoice, payment_method)
-
-            # 🆕 Отправить email уведомление асинхронно
-            celery_app.send_task(
-                'apps.subscriptions.tasks.send_subscription_created_email',
-                args=[subscription.id]
-            )
 
             return subscription
 

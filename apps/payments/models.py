@@ -1,6 +1,6 @@
-from django.db import models
 from django.contrib.auth.models import User
-from apps.subscriptions.models import Subscription, Invoice
+from django.db import models
+from apps.subscriptions.models import Subscription, Plan
 
 
 class PaymentMethodRef(models.Model):
@@ -10,9 +10,12 @@ class PaymentMethodRef(models.Model):
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payment_methods')
-    provider = models.CharField(max_length=50, choices=PROVIDER_CHOICES)
-    provider_customer_id = models.CharField(max_length=255, null=True, blank=True)
-    provider_payment_method_id = models.CharField(max_length=255)
+    provider = models.CharField(
+        max_length=20,
+        choices=PROVIDER_CHOICES,
+        default='fake'
+    )
+    stripe_payment_method_id = models.CharField(max_length=255, unique=True)
     is_default = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -21,7 +24,37 @@ class PaymentMethodRef(models.Model):
         db_table = 'payment_methods'
 
     def __str__(self):
-        return f"{self.user.email} - {self.provider}"
+        return f"{self.user.username} - {self.provider}"
+
+
+class Invoice(models.Model):
+    """Счета"""
+
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('PAID', 'Paid'),
+        ('FAILED', 'Failed'),
+        ('CANCELED', 'Canceled'),
+    ]
+
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name='invoices')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='RUB')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    billing_period_start = models.DateField(null=True, blank=True)
+    billing_period_end = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'invoices'
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"Invoice {self.id} - {self.status}"
 
 
 class Payment(models.Model):
@@ -83,7 +116,7 @@ class TransactionHistoryEntry(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='transactions'
+        related_name='transaction_entries'
     )
     description = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
