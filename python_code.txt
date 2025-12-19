@@ -184,31 +184,19 @@ class PaymentMethodRefSerializer(serializers.ModelSerializer):
 
 
 class PaymentSerializer(serializers.ModelSerializer):
-    """Сериализатор для платежа"""
-
     class Meta:
         model = Payment
         fields = [
-            'id',
-            'invoice',
-            'status',
-            'amount',
-            'currency',
-            'provider',
-            'provider_payment_id',
-            'retry_count',
-            'next_retry_at',
-            'created_at',
-            'updated_at',
+            'id', 'user', 'invoice', 'amount', 'currency', 'status',
+            'provider', 'provider_payment_id', 'idempotency_key',
+            'created_at', 'updated_at'
         ]
-        read_only_fields = [
-            'id',
-            'provider_payment_id',
-            'retry_count',
-            'next_retry_at',
-            'created_at',
-            'updated_at',
-        ]
+        read_only_fields = ['id', 'user', 'provider_payment_id', 'created_at', 'updated_at']
+
+    def create(self, validated_data):
+        # Автоматически заполни user из request
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
 
 
 class PaymentDetailSerializer(serializers.ModelSerializer):
@@ -490,105 +478,44 @@ from apps.subscriptions.models import Plan, Subscription
 from apps.payments.models import Invoice
 
 class PlanSerializer(serializers.ModelSerializer):
-    """Сериализатор для плана"""
-
     class Meta:
         model = Plan
-        fields = [
-            'id',
-            'name',
-            'price_amount',
-            'currency',
-            'billing_period',
-            'trial_days',
-            'is_active',
-            'created_at',
-        ]
+        fields = ['id', 'name', 'price_amount', 'currency', 'billing_period', 'trial_days', 'is_active', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 
 class InvoiceSerializer(serializers.ModelSerializer):
-    """Сериализатор для счёта"""
-
     class Meta:
         model = Invoice
-        fields = [
-            'id',
-            'subscription',
-            'amount',
-            'currency',
-            'status',
-            'billing_period_start',
-            'billing_period_end',
-            'created_at',
-        ]
+        fields = ['id', 'subscription', 'amount', 'currency', 'status', 'billing_period_start', 'billing_period_end', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
-    """Базовый сериализатор подписки"""
     plan = PlanSerializer(read_only=True)
     plan_id = serializers.IntegerField(write_only=True)
 
     class Meta:
         model = Subscription
-        fields = [
-            'id',
-            'user',
-            'plan',
-            'plan_id',
-            'status',
-            'current_period_start',
-            'current_period_end',
-            'cancel_at_period_end',
-            'created_at',
-            'updated_at',
-        ]
-        read_only_fields = [
-            'id',
-            'user',
-            'created_at',
-            'updated_at',
-        ]
+        fields = ['id', 'user', 'plan', 'plan_id', 'status', 'current_period_start', 'current_period_end', 'cancel_at_period_end', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
 
 
 class SubscriptionDetailSerializer(serializers.ModelSerializer):
-    """Детальный сериализатор подписки с связанными данными"""
     plan = PlanSerializer(read_only=True)
     invoices = InvoiceSerializer(many=True, read_only=True)
 
     class Meta:
         model = Subscription
-        fields = [
-            'id',
-            'user',
-            'plan',
-            'status',
-            'current_period_start',
-            'current_period_end',
-            'cancel_at_period_end',
-            'invoices',
-            'created_at',
-            'updated_at',
-        ]
-        read_only_fields = [
-            'id',
-            'user',
-            'invoices',
-            'created_at',
-            'updated_at',
-        ]
+        fields = ['id', 'user', 'plan', 'status', 'current_period_start', 'current_period_end', 'cancel_at_period_end', 'invoices', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'user', 'invoices', 'created_at', 'updated_at']
 
 
 class SubscriptionUpdateSerializer(serializers.ModelSerializer):
-    """Сериализатор для обновления подписки"""
-
     class Meta:
         model = Subscription
-        fields = [
-            'status',
-            'cancel_at_period_end',
-        ]
+        fields = ['status', 'cancel_at_period_end']
+
 
 ############################################################
 
@@ -868,13 +795,10 @@ Django settings for subscription project.
 import os
 from pathlib import Path
 
-# Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-CHANGE-THIS-IN-PRODUCTION'
+SECRET_KEY = 'boom'
 
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = [
@@ -1324,7 +1248,9 @@ core\services\billing_service.py
 ============================================================
 from datetime import datetime, timedelta
 from django.db import transaction
-from apps.subscriptions.models import Subscription, Invoice
+from apps.subscriptions.models import Subscription
+from apps.payments.models import Invoice
+
 from apps.payments.models import Payment, TransactionHistoryEntry
 from core.payment_gateway import get_payment_gateway
 from .subscription_service import SubscriptionService
@@ -1456,6 +1382,42 @@ class BillingService:
 
         print(f"❌ Payment failed for subscription {subscription.id}")
 
+    def retry_failed_payments(self):
+        """Повторить неудачные платежи"""
+
+        failed_payments = Payment.objects.filter(status='FAILED')
+        retried = 0
+
+        for payment in failed_payments:
+            try:
+                # Повтор платежа
+                response = self.gateway.create_payment(payment, None)
+
+                payment.provider_payment_id = response.get('provider_payment_id')
+                payment.status = response.get('status', 'FAILED')
+                payment.retry_count += 1
+                payment.save()
+
+                if response.get('status') == 'SUCCEEDED':
+                    # Успех - обнови инвойс
+                    invoice = payment.invoice
+                    invoice.status = 'PAID'
+                    invoice.save()
+
+                    # Обнови подписку
+                    subscription = invoice.subscription
+                    self._handle_successful_payment(subscription, invoice, payment)
+
+                    retried += 1
+
+            except Exception as e:
+                print(f"Error retrying payment {payment.id}: {e}")
+
+        return {
+            'retried': retried,
+            'total': failed_payments.count(),
+        }
+
 ############################################################
 
 core\services\payment_service.py
@@ -1513,7 +1475,8 @@ core\services\subscription_service.py
 import hashlib
 from datetime import datetime, timedelta
 from django.db import transaction
-from apps.subscriptions.models import Subscription, Plan, Invoice
+from apps.subscriptions.models import Subscription, Plan
+from apps.payments.models import Invoice
 from apps.payments.models import Payment, PaymentMethodRef, TransactionHistoryEntry
 from core.payment_gateway import get_payment_gateway
 from celery import current_app as celery_app
@@ -1559,12 +1522,6 @@ class SubscriptionService:
 
             if invoice_amount > 0 and payment_method:
                 self._process_payment(subscription, invoice, payment_method)
-
-            # 🆕 Отправить email уведомление асинхронно
-            celery_app.send_task(
-                'apps.subscriptions.tasks.send_subscription_created_email',
-                args=[subscription.id]
-            )
 
             return subscription
 

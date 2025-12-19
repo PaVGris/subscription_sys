@@ -609,3 +609,8 @@ INFO 2025-12-17 14:14:09,430 autoreload 21904 19328 D:\subscription_sys\core\ser
 INFO 2025-12-17 14:14:10,364 autoreload 26468 22592 Watching for file changes with StatReloader
 INFO 2025-12-17 14:21:03,801 autoreload 26468 22592 D:\subscription_sys\core\services\billing_service.py changed, reloading.
 INFO 2025-12-17 14:21:04,559 autoreload 25100 22536 Watching for file changes with StatReloader
+INFO 2025-12-18 18:58:41,307 autoreload 19780 19508 Watching for file changes with StatReloader
+WARNING 2025-12-18 18:58:46,085 log 19780 2912 Not Found: /
+WARNING 2025-12-18 18:58:46,085 log 19780 2912 "GET / HTTP/1.1" 404 2451
+WARNING 2025-12-18 18:58:46,464 log 19780 2912 Not Found: /favicon.ico
+WARNING 2025-12-18 18:58:46,465 log 19780 2912 "GET /favicon.ico HTTP/1.1" 404 2502

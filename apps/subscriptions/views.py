@@ -26,7 +26,7 @@ class StandardPageNumberPagination(PageNumberPagination):
 
 
 class PlanViewSet(viewsets.ModelViewSet):
-    queryset = Plan.objects.all()  # ← тоже измени (убери filter)
+    queryset = Plan.objects.all()
     serializer_class = PlanSerializer
     pagination_class = StandardPageNumberPagination
     filter_backends = [SearchFilter, OrderingFilter]
