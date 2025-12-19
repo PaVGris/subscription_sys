@@ -1,0 +1,15 @@
+#выполняй последовательно!
+
+#сборка
+docker-compose up -d --build
+
+#для миграции
+docker-compose exec web python manage.py migrate
+docker-compose exec web python manage.py createsuperuser
+
+#проверка celery
+docker-compose logs celery_worker
+docker-compose logs celery_beat
+
+
+
